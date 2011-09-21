@@ -1152,7 +1152,7 @@ if __name__ == "__main__":
     search_urls = open(sys.argv[1])
         
     if len(sys.argv) == 3:
-        expose_links = get_expose_links(search_urls, sys.argv[2])
+        expose_links = get_expose_links(search_urls, int(sys.argv[2]))
     else:
         expose_links = get_expose_links(search_urls)
     
