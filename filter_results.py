@@ -743,7 +743,7 @@ class ImmonetExpose(AbstractExpose):
         if self.security == None:
             self.security = self.evaluate_table_value('Kaution')
             if self.security == 'k. A.':
-                self.security = self.evaluate_table_value('Genossenschaftsanteil')
+                self.security = re.sub(u'[0-9,.] €','\0',self.evaluate_table_value('Genossenschaftsanteil'))
         return self.security
     
     def get_commission(self):
