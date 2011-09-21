@@ -877,7 +877,6 @@ class ExposeFilter:
             self.categories[category] = [expose]
     
     def __init__(self, expose_links):
-        wiki_page = get_wiki_page()
         self.categories = dict()
         print "Filtering..."
         prog = ProgressBar(len(expose_links))
@@ -1014,6 +1013,7 @@ def get_search_links(search_url,max_pages = None):
 
 def generate_wiki_overview(categories):
     wiki = codecs.open(os.path.join(os.path.dirname(__file__),"wiki_page.txt"),encoding='utf-8',mode="w")
+    wiki_page = get_wiki_page()
     number = 0
     today = datetime.date.today()
     wiki.write(u"== Kandidaten %s ==\n" % today.strftime("%Y-%M-%d"))
@@ -1022,10 +1022,10 @@ def generate_wiki_overview(categories):
         if category != None:
             wiki.write(u"=== Preisklasse %d0 - %d9 € ===\n" % (i,i))
             for entry in category:
-                if in_wiki(entry):
-                    wiki.write(u"[%s-%05d] ''' %s '''\n" % (today.strftime("%Y%M%d"), number, entry.get_title()))
-                else:
+                if in_wiki(wiki_page,entry):
                     wiki.write(u"[%s-%05d] ''' ''(bereits im Wiki!!!)'' %s '''\n" % (today.strftime("%Y%M%d"), number, entry.get_title()))
+                else:
+                    wiki.write(u"[%s-%05d] ''' %s '''\n" % (today.strftime("%Y%M%d"), number, entry.get_title()))
                 number += 1
                 wiki.write(u' * Expose: %s\n' % entry.get_expose_link())
                 wiki.write(u' * Bezirk: ' + entry.get_borough() + '\n')
