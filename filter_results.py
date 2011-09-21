@@ -226,13 +226,13 @@ def _get_json_object(filename):
         try:
             obj = json.load(fp)
             date = datetime.datetime.strptime(obj['date'],"%Y-%M-%d")
-            age = date - datetime.date.today()
+            age = date - datetime.datetime.today()
             if age <= datetime.timedelta(days=3):
                 return obj
         except json.decoder.JSONDecodeError:
             pass
         except KeyError,e:
-            if e.args[1] == 'date': pass
+            if e.args[0] == 'date': pass
             else:
                 print 'KeyError:',e
     return dict()
