@@ -451,6 +451,12 @@ class GeneralExpose(AbstractExpose):
                 return ImmoscoutExpose(self.expose_link)
             elif self.expose_link.find('immonet.de') >= 0:
                 return ImmonetExpose(self.expose_link)
+            elif self.expose_link.find('immowelt.de') >= 0:
+                dummy = AbstractExpose(self.expose_link)
+                dummy = dummy.as_dict()
+                for k in dummy:
+                    dummy[k] = '0'
+                return dummy
         raise Exception("Illegal Link: "+self.expose_link)
     
     def __getattr__(self,attr):
@@ -1008,6 +1014,8 @@ def get_search_links(search_url,max_pages = None):
         search_url = re.sub(r'Suche/S-([0-9]*)/Wohnung-Miete',r'Suche/S-\1/P-1/Wohnung-Miete',search_url)
         for i in range(1,pages+1):
             links.append(search_url.replace(r'/P-1/',("/P-%d/"%i)))
+    if (search_url.find('immowelt.de') >= 0):
+        links.append(search_url)
             
     return links
 
@@ -1124,21 +1132,63 @@ def get_expose_links(search_urls, pages = None):
         if len(links) > 0:
             prog = ProgressBar(len(links))
             for num,link in enumerate(links):
-                sys.stdout.write(str(prog.update(num))+' \r') 
                 file = urlopen(link)
-                page = file.read()
-                file.close()
                 parsed_url = urlparse(link)
                 if parsed_url.netloc.find('immonet.de') >= 0:
+                    sys.stdout.write(str(prog.update(num))+' \r') 
+                    page = file.read()
                     regex = re.compile(r'<a id="lnkToDetails_[0-9]*" href="([^"]*)"')
                     for a_tag in regex.finditer(page):
                         expose_links = expose_links.union([parsed_url.scheme+'://'+parsed_url.netloc+a_tag.group(1)])
                 elif parsed_url.netloc.find('immobilienscout24.de') >= 0:
+                    sys.stdout.write(str(prog.update(num))+' \r') 
+                    page = file.read()
                     regex = re.compile(r'<a href="(/expose/[0-9]*)')
                     for a_tag in regex.finditer(page):
                         expose_links = expose_links.union([parsed_url.scheme+'://'+parsed_url.netloc+urlparse(a_tag.group(1)).path])
-            print prog.update(num+1), '\r'
-    
+                elif parsed_url.netloc.find('immowelt.de') >= 0:
+                    root = lxml.html.parse(file).getroot()
+                    pyquery = PyQuery(root)
+                    last_first = 1
+                    hits_count_span = pyquery(
+                            'span#ctl00_MainContent_ListNavigation1_lblHitsCount'
+                        ).text()
+                    hits = re.search('\(von\s*([0-9]+)\s*Objekten\)',hits_count_span).group(1)
+                    last_first = 0
+                    prog = ProgressBar(int(hits))
+                    page_num = 1
+                    while 1:
+                        sys.stdout.write(str(prog.update(last_first))+' \r')
+                        match = re.search('([0-9]+)\s*-\s*([0-9]+)',hits_count_span)
+                        if (last_first > int(match.group(1)) or 
+                                int(match.group(1)) > int(match.group(2))):
+                            break
+                        if pages != None:
+                            if page_num > pages:
+                                break
+                        
+                        page = lxml.html.tostring(root)
+                        regex = re.compile(r'<a href="(/immobilien/immodetail\.aspx\?id=[0-9]+)')
+                        for a_tag in regex.finditer(page):
+                            expose_links = expose_links.union([parsed_url.scheme+'://'+parsed_url.netloc+a_tag.group(1)])
+                        
+                        fields = pyquery('form#aspnetForm input')
+                        last_first = int(match.group(1))
+                        params = {'__EVENTTARGET':'ctl00$MainContent$ListNavigation1$nlbPlus'}
+                        for field in fields:
+                            if (field.get('type') == 'text' or 
+                                    field.get('type') == 'hidden' or 
+                                    field.get('type') == 'password'):
+                                params[field.get('name')] = field.get('value')
+                        page_num += 1
+                        file = urlopen(link, urlencode(params))
+                        root = lxml.html.parse(file).getroot()
+                        pyquery = PyQuery(root)
+                    num = hits
+                else:
+                    raise Exception('URL of host %s://%s not supported' % (parsed_url.scheme,parsed_url.netloc))
+                file.close()
+    print prog.update(num)
     return expose_links
 
 def encode_expose(obj):
