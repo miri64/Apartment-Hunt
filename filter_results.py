@@ -1401,7 +1401,7 @@ def get_expose_links(search_urls, pages = None):
                 else:
                     raise Exception('URL of host %s://%s not supported' % (parsed_url.scheme,parsed_url.netloc))
                 file.close()
-    print prog.update(num)
+        print prog.update(num)
     return expose_links
 
 def encode_expose(obj):
