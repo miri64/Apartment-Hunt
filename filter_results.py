@@ -948,7 +948,11 @@ class ImmoweltExpose(AbstractExpose):
         return self.commission
     
     def get_space(self):
-        raise NotImplementedError()
+        if self.space == None:
+            self.space = self.get_basic_value(u'Wohnfläche')
+            if self.space == None:
+                self.space = 'k. A.'
+        return self.space
     
     def get_floor(self):
         if self.floor == None:
