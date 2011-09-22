@@ -1365,7 +1365,6 @@ def get_expose_links(search_urls, pages = None):
                             'span#ctl00_MainContent_ListNavigation1_lblHitsCount'
                         ).text()
                     hits = re.search('\(von\s*([0-9]+)\s*Objekten\)',hits_count_span).group(1)
-                    last_first = 0
                     prog = ProgressBar(int(hits))
                     page_num = 1
                     while 1:
@@ -1395,6 +1394,9 @@ def get_expose_links(search_urls, pages = None):
                         file = urlopen(link, urlencode(params))
                         root = lxml.html.parse(file).getroot()
                         pyquery = PyQuery(root)
+                        hits_count_span = pyquery(
+                            'span#ctl00_MainContent_ListNavigation1_lblHitsCount'
+                        ).text()
                     num = hits
                 else:
                     raise Exception('URL of host %s://%s not supported' % (parsed_url.scheme,parsed_url.netloc))
