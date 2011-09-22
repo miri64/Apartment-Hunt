@@ -12,6 +12,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 """
 
 import simplejson as json
+from htmlentitydefs import name2codepoint
 import lxml.html
 import codecs
 import os, sys
@@ -250,6 +251,10 @@ def ensure_dir(dirname):
     except OSError:
         pass
 
+def unescape(s):
+    s = re.sub('&#([0-9]+);', lambda m: unichr(int(m.group(1))), s)
+    return re.sub('&(%s);' % '|'.join(name2codepoint), 
+            lambda m: unichr(name2codepoint[m.group(1)]), s)
 
 class AbstractExpose:
     def get_title(self):
@@ -840,20 +845,32 @@ class ImmoweltExpose(AbstractExpose):
     
     def get_contact(self):
         if self.contact == None:
+            address_json = re.findall('{eo:.*};',str(self.pyquery('script')))[0]
+            address_json = address_json.replace('eo','"eo"')
+            address_json = address_json.replace('v','"v"')
+            address_json = address_json.replace('i','"i"').strip(';')
+            address_scramble = eval(address_json)['eo']
+            address = {
+                    'exposeOffererName': dict(),
+                    'exposeOffererAddress': dict(),
+                    'exposeOffererContact': dict(),
+                }
+            for a in address_scramble:
+                parent = self.pyquery('#'+a['i'])[0].getparent().getparent()
+                address_part_id = parent.get('id')
+                address_part = unescape(unescape(a['v']))
+                address_order = [lxml.html.tostring(e).find(a['i']) >= 0 for e in parent].index(True)
+                if address_part_id == 'exposeOffererContact':
+                    address_part = self.pyquery('#'+a['i'])[0].getparent()[0].text + ' ' + address_part
+                address[address_part_id][address_order] = address_part
             self.contact = ''
-            metas = self.pyquery('meta')
-            for meta in metas:
-                if meta.get('name') == 'description':
-                    description = meta.get('content').strip()
-                    match = re.search('angeboten von (.*)$',description)
-                    if match != None:
-                        self.contact += match.group(1) + ': '
-            data = self.get_from_read('Ihr/e Ansprechpartner/in')
-            if data != None:
-                self.contact += data
+            for id in address:
+                for part in address[id]:
+                    self.contact += address[id][part].strip()+', '
+                self.contact = self.contact.strip().strip(',')+'; '
+            self.contact = self.contact.strip().strip(';')
             if len(self.contact) == 0:
                 self.contact = 'k. A.'
-            self.contact = self.contact.strip().strip(':,.').strip()
         return self.contact
     
     def get_cold_rent(self):
