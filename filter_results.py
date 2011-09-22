@@ -1241,8 +1241,8 @@ def generate_wiki_overview(categories):
                 wiki.write(u' * Verfügbar ab: %s\n' % entry.get_availability())
                 wiki.write(u' * Kontakt: %s\n' % entry.get_contact())
                 wiki.write('\n')
+                new_exposes[entry.get_expose_link()] = entry.as_dict()
             wiki.write('\n')
-        new_exposes[entry.get_expose_link()] = entry.as_dict()
     wiki.close()
 
 def get_config(config_path):
