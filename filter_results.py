@@ -452,11 +452,7 @@ class GeneralExpose(AbstractExpose):
             elif self.expose_link.find('immonet.de') >= 0:
                 return ImmonetExpose(self.expose_link)
             elif self.expose_link.find('immowelt.de') >= 0:
-                dummy = AbstractExpose(self.expose_link)
-                dummy = dummy.as_dict()
-                for k in dummy:
-                    dummy[k] = '0'
-                return dummy
+                return ImmoweltExpose(self.expose_link)
         raise Exception("Illegal Link: "+self.expose_link)
     
     def __getattr__(self,attr):
@@ -629,7 +625,6 @@ class ImmoscoutExpose(AbstractExpose):
                 self.availability = 'k. A.'
         return self.availability
 
-
 class ImmonetExpose(AbstractExpose):
     def find_in_table(self,sub):
         try:
@@ -795,6 +790,202 @@ class ImmonetExpose(AbstractExpose):
             self.availability = self.evaluate_table_value(u"Verfügbar ab")
         return self.availability
 
+class ImmoweltExpose(AbstractExpose):
+    def get_basic_value(self,k):
+        try:
+            try:
+                return self.basic_values[k]
+            except AttributeError:
+                keys = self.pyquery('span.eckdatenbezeichner')
+                values = self.pyquery('span.eckdatencontent')
+                self.basic_values = dict()
+                for l,v in zip(keys,values):
+                    key = lxml.html.tostring(l,encoding=unicode,method='text').strip().strip(':')
+                    value = lxml.html.tostring(v,encoding=unicode,method='text').strip()
+                    self.basic_values[key] = value
+                return self.basic_values[k]
+        except KeyError:
+            return None
+    
+    def get_from_read(self,k):
+        try:
+            try:
+                return self.read[k]
+            except AttributeError:
+                keys = self.pyquery('div.read h6')
+                values = self.pyquery('div.read p')
+                self.read = dict()
+                for l,v in zip(keys,values):
+                    key = lxml.html.tostring(l,encoding=unicode,method='text').strip()
+                    value = lxml.html.tostring(v,encoding=unicode,method='text').strip()
+                    self.read[key] = value
+                return self.read[k]
+        except KeyError:
+            return None
+    
+    def get_address(self):
+        if self.address == None:
+            self.address = ''
+            street = self.pyquery('#ctl00_MainContent_ExposeAnschrift1_lblStrasse')
+            if street != None:
+                self.address += street.text().strip() + ', '
+            zip_town = self.pyquery('#ctl00_MainContent_ExposeAnschrift1_lblPlzOrt')
+            if zip_town != None:
+                self.address += zip_town.text().strip()
+            borough = self.pyquery('#ctl00_MainContent_ExposeAnschrift1_lblStadtteil')
+            if borough != None:
+                self.address += ' '+borough.text().strip()
+            self.address = self.address.strip()
+        return self.address
+    
+    def get_contact(self):
+        if self.contact == None:
+            self.contact = ''
+            metas = self.pyquery('meta')
+            for meta in metas:
+                if meta.get('name') == 'description':
+                    description = meta.get('content').strip()
+                    match = re.search('angeboten von (.*)$',description)
+                    if match != None:
+                        self.contact += match.group(1) + ': '
+            data = self.get_from_read('Ihr/e Ansprechpartner/in')
+            if data != None:
+                self.contact += data
+            if len(self.contact) == 0:
+                self.contact = 'k. A.'
+            self.contact = self.contact.strip().strip(':,.').strip()
+        return self.contact
+    
+    def get_cold_rent(self):
+        if self.cold_rent == None:
+            self.cold_rent = self.get_basic_value(u'Kaltmiete')
+            if self.cold_rent == None:
+                self.cold_rent = 'k. A.'
+        return self.cold_rent
+    
+    def get_additional_charges(self):
+        if self.additional_charges == None:
+            self.additional_charges = self.get_basic_value(u'Nebenkosten')
+            if self.additional_charges == None:
+                self.additional_charges = 'k. A.'
+        return self.additional_charges
+    
+    def get_operation_expenses(self):
+        if self.operation_expenses == None:
+            self.operation_expenses = self.get_basic_value(u'Betriebskosten')
+            if self.operation_expenses == None:
+                self.operation_expenses = 'k. A.'
+        return self.operation_expenses
+    
+    def get_heating_cost(self):
+        if self.heating_cost == None:
+            self.heating_cost = self.get_basic_value(u'Heizkosten')
+            if self.heating_cost == None:
+                self.heating_cost = 'k. A.'
+        return self.heating_cost
+    
+    def get_heating_type(self):
+        if self.heating_type == None:
+            facilities = self.pyquery('.linklist_icon_04 li')
+            self.heating_type = 'k. A.'
+            tostring = lambda x: lxml.html.tostring(x, encoding=unicode, method='text')
+            for f in facilities:
+                if tostring(f).lower().find('heizung'):
+                    self.heating_type = tostring(f).strip()
+                    break
+        return self.heating_type
+    
+    def get_total_rent(self):
+        if self.total_rent == None:
+            rent = 0
+            try:
+                rent = float(re.search(r'[0-9]*\.*[0-9]*,*[0-9]+',self.get_cold_rent()).group().replace('.','').replace(',','.'))
+            except AttributeError:
+                pass
+            try:
+                rent += float(re.search(r'[0-9]*\.*[0-9]*,*[0-9]+',self.get_additional_charges()).group().replace('.','').replace(',','.'))
+            except AttributeError:
+                pass
+            try:
+                rent += float(re.search(r'[0-9]*\.*[0-9]*,*[0-9]+',self.get_operation_expenses()).group().replace('.','').replace(',','.'))
+            except AttributeError:
+                pass
+            try:
+                rent += float(re.search(r'[0-9]*\.*[0-9]*,*[0-9]+',self.get_heating_cost()).group().replace('.','').replace(',','.'))
+            except AttributeError:
+                pass
+            try:
+                total_rent = self.get_basic_value(u'Warmmiete')
+                if total_rent != None:
+                    total_rent = float(re.search(r'[0-9]*\.*[0-9]*,*[0-9]+',total_rent).group().replace('.','').replace(',','.'))
+                    if total_rent > rent:
+                        rent = total_rent
+                else:
+                    return 'k. A.'
+            except AttributeError:
+                pass
+            
+            self.total_rent = str(rent)+u' €'
+        return self.total_rent
+    
+    def get_object_state(self):
+        if self.object_state == None:
+            self.object_state = 'k. A.'
+        return self.object_state
+    
+    def get_security(self):
+        if self.security == None:
+            self.security = self.get_basic_value(u'Kaution')
+            if self.security == None:
+                self.security = 'k. A.'
+        return self.security
+    
+    def get_commission(self):
+        if self.commission == None:
+            self.commission = self.get_from_read(u'Provision')
+            if self.commission == None or self.commission == 'Die Mieterprovision beträgt':
+                self.commission = 'k. A.'
+        return self.commission
+    
+    def get_space(self):
+        raise NotImplementedError()
+    
+    def get_floor(self):
+        if self.floor == None:
+            self.floor = self.get_basic_value(u'Stockwerk')
+            if self.floor != None:
+                if self.floor == 'Erdgeschoss':
+                    return '0'
+                self.floor = re.sub('([0-9]+)\. Etage',r'\1',self.floor)
+            else:
+                self.floor = 'k. A.'
+        return self.floor
+    
+    def get_flat_type(self):
+        if self.flat_type == None:
+            self.flat_type = self.get_basic_value(u'Immobilienart')
+            if self.flat_type == None:
+                self.flat_type = 'k. A.'
+        return self.flat_type
+    
+    def get_rooms(self):
+        if self.rooms == None:
+            self.rooms = self.get_basic_value(u'Zimmer')
+            if self.rooms == None:
+                self.rooms = 'k. A.'
+        return self.rooms
+    
+    def get_year(self):
+        if self.year == None:
+            self.year = self.get_basic_value(u'Baujahr')
+            if self.year == None:
+                self.year = 'k. A.'
+        return self.year
+    
+    def get_availability(self):
+        if self.object_state == None:
+            self.object_state = 'k. A.'
+        return self.object_state
 
 class ExposeFilter:
     def in_borough(self,expose,boroughs):
