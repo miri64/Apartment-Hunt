@@ -1081,9 +1081,12 @@ class ExposeFilter:
             sys.stdout.write(str(prog.update(num))+' \r') 
             expose = GeneralExpose(expose_link)
             if (not self.in_floors(expose,0) and 
-                not self.is_one_of_types(expose,[r'[Ee]rdgeschoss',r'[Pp]arterre',r'[Ff]erien']) and
                 not self.is_commissioned(expose) and
                 self.has_min_rooms(expose,2) and
+                not self.realtor_company_name_contains(expose,[r'GMRE','GAGFAH']) and
+                not self.has_one_of_heating_types(expose,[r'Ofenheizung']) and
+                not self.has_one_of_object_states(expose,[r'[Rr]enovierungsbed.*rftig','[Uu]nrenoviert']) and
+                not self.is_one_of_types(expose,[r'[Ee]rdgeschoss',r'[Pp]arterre',r'[Ff]erien']) and
                 self.has_max_total_rent(expose,500) and
                 not self.in_borough(expose,[
                         'Adlershof',
@@ -1113,11 +1116,7 @@ class ExposeFilter:
                         'Wannsee',
                         'Wartenberg',
                         'Wittenau'
-                    ]) and
-                not self.has_one_of_heating_types(expose,[r'Ofenheizung']) and
-                not self.has_one_of_object_states(expose,[r'[Rr]enovierungsbed.*rftig','[Uu]nrenoviert']) and
-                not self.realtor_company_name_contains(expose,[r'GMRE','GAGFAH'])
-            ):
+                    ])):
                 self.categorize(expose)
             new_exposes[expose_link] = expose.as_dict()
         print prog.update(num+1), '\r' 
