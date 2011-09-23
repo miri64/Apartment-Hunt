@@ -1397,11 +1397,11 @@ def get_expose_links(search_urls, pages = None):
                         hits_count_span = pyquery(
                             'span#ctl00_MainContent_ListNavigation1_lblHitsCount'
                         ).text()
-                    num = hits
+                    num = hits-1
                 else:
                     raise Exception('URL of host %s://%s not supported' % (parsed_url.scheme,parsed_url.netloc))
                 file.close()
-        print prog.update(num)
+        print prog.update(num+1)
     return expose_links
 
 def encode_expose(obj):
