@@ -731,7 +731,7 @@ class ImmonetExpose(AbstractExpose):
                 total_rent = self.find_in_table('Miete inkl. NK')
                 if total_rent == 'k. A.':
                     total_rent = self.find_in_table('Monatsmiete')
-                total_rent = float(re.search(r'[0-9]*[.,][0-9]*[,.]*[0-9]+',total_rent.text.strip()).group().replace('.','').replace(',','.'))
+                total_rent = float(re.search(r'[0-9]*\.*[0-9]*,*[0-9]+',total_rent.text.strip()).group().replace('.','').replace(',','.'))
                 if total_rent > rent:
                     rent = total_rent
             except AttributeError:
