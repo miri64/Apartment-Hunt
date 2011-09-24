@@ -257,6 +257,33 @@ def unescape(s):
             lambda m: unichr(name2codepoint[m.group(1)]), s)
 
 class AbstractExpose:
+    def in_wiki(self, wiki_page):
+        return wiki.find(self.get_expose_link()) >= 0
+    
+    def generate_wiki_overview(self, wiki_page, number):
+        wiki = ''
+        if self.in_wiki(wiki_page):
+            wiki += u"[%s-%05d] ''' ''(bereits im Wiki!!!)'' %s '''\n" % (today.strftime("%Y%M%d"), number, entry.get_title())
+        else:
+            wiki += u"[%s-%05d] ''' %s '''\n" % (today.strftime("%Y%m%d"), number, entry.get_title())
+        wiki += u' * Expose: %s\n' % entry.get_expose_link()
+        wiki += u' * Bezirk: %s' % entry.get_borough() + '\n'
+        wiki += u'  * Adresse: %s\n' % entry.get_address()
+        wiki += u' * Gesamtmiete: %s\n' % entry.get_total_rent()
+        wiki += u'  * Kaltmiete: %s\n' % entry.get_cold_rent()
+        wiki += u'  * Nebenkosten: %s\n' % entry.get_additional_charges()
+        wiki += u'  * Heizkosten: %s\n' % entry.get_heating_cost()
+        wiki += u'  * Betriebskosten: %s\n' % entry.get_operation_expenses()
+        wiki += u' * Kaution: %s\n' % entry.get_security()
+        wiki += u' * Provision: %s\n' % entry.get_commission()
+        wiki += u' * Wohnfläche: %s\n' % entry.get_space()
+        wiki += u' * Zimmer: %s\n' % entry.get_rooms()
+        wiki += u' * Etage: %s\n' % entry.get_floor()
+        wiki += u' * Verfügbar ab: %s\n' % entry.get_availability()
+        wiki += u' * Kontakt: %s\n' % entry.get_contact()
+        wiki += u'\n'
+        return wiki
+    
     def get_title(self):
         if self.title == None:
             self.title = self.pyquery('title').text()
@@ -392,6 +419,11 @@ class AbstractExpose:
 class GeneralExpose(AbstractExpose):
     def get_title(self):
         return self.title
+    
+    def generate_wiki_overview(self, wiki_page, number):
+        if isinstance(self.delegate, dict):
+            self.delegate = self.__get_delegate()
+        return delegate.generate_wiki_overview()
     
     def get_borough(self):
         return self.borough
@@ -1243,33 +1275,14 @@ def generate_wiki_overview(categories):
     wiki_page = get_wiki_page()
     number = 0
     today = datetime.date.today()
-    wiki.write(u"== Kandidaten %s ==\n" % today.strftime("%Y-%M-%d"))
+    wiki.write(u"== Kandidaten %s ==\n" % today.strftime("%Y-%m-%d"))
     for i in range(51):
         category = categories.get(i*10)
         if category != None:
             wiki.write(u"=== Preisklasse %d0 - %d9 € ===\n" % (i,i))
             for entry in category:
-                if in_wiki(wiki_page,entry):
-                    wiki.write(u"[%s-%05d] ''' ''(bereits im Wiki!!!)'' %s '''\n" % (today.strftime("%Y%M%d"), number, entry.get_title()))
-                else:
-                    wiki.write(u"[%s-%05d] ''' %s '''\n" % (today.strftime("%Y%M%d"), number, entry.get_title()))
+                entry.generate_wiki_overview(wiki_page, number)
                 number += 1
-                wiki.write(u' * Expose: %s\n' % entry.get_expose_link())
-                wiki.write(u' * Bezirk: ' + entry.get_borough() + '\n')
-                wiki.write(u'  * Adresse: %s\n' % entry.get_address())
-                wiki.write(u' * Gesamtmiete: %s\n' % entry.get_total_rent())
-                wiki.write(u'  * Kaltmiete: %s\n' % entry.get_cold_rent())
-                wiki.write(u'  * Nebenkosten: %s\n' % entry.get_additional_charges())
-                wiki.write(u'  * Heizkosten: %s\n' % entry.get_heating_cost())
-                wiki.write(u'  * Betriebskosten: %s\n' % entry.get_operation_expenses())
-                wiki.write(u' * Kaution: %s\n' % entry.get_security())
-                wiki.write(u' * Provision: %s\n' % entry.get_commission())
-                wiki.write(u' * Wohnfläche: %s\n' % entry.get_space())
-                wiki.write(u' * Zimmer: %s\n' % entry.get_rooms())
-                wiki.write(u' * Etage: %s\n' % entry.get_floor())
-                wiki.write(u' * Verfügbar ab: %s\n' % entry.get_availability())
-                wiki.write(u' * Kontakt: %s\n' % entry.get_contact())
-                wiki.write('\n')
                 new_exposes[entry.get_expose_link()] = entry.as_dict()
             wiki.write('\n')
     wiki.close()
@@ -1332,9 +1345,6 @@ def get_wiki_page():
     fp.close()
     print "  ... Done"
     return wiki_page
-    
-def in_wiki(wiki, expose):
-    return wiki.find(expose.get_expose_link()) >= 0
 
 def get_expose_links(search_urls, pages = None):
     print "Collecting expose links:"
