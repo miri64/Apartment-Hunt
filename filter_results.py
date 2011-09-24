@@ -245,12 +245,6 @@ def _set_json_object(filename,obj):
 old_exposes = _get_json_object(os.path.join(os.path.dirname(__file__),'old_exposes.json'))
 new_exposes = {'date':datetime.date.today().isoformat()}
 
-def ensure_dir(dirname):
-    try:
-        os.makedirs(dirname)
-    except OSError:
-        pass
-
 def unescape(s):
     s = re.sub('&#([0-9]+);', lambda m: unichr(int(m.group(1))), s)
     return re.sub('&(%s);' % '|'.join(name2codepoint), 
@@ -1421,9 +1415,6 @@ def get_expose_links(search_urls, pages = None):
                 file.close()
         print prog.update(num+1)
     return expose_links
-
-def encode_expose(obj):
-    return dict(obj)
 
 if __name__ == "__main__":
     reload(sys)
