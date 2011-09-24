@@ -257,24 +257,24 @@ class AbstractExpose:
     def generate_wiki_overview(self, wiki_page, number):
         wiki = ''
         if self.in_wiki(wiki_page):
-            wiki += u"[%s-%05d] ''' ''(bereits im Wiki!!!)'' %s '''\n" % (today.strftime("%Y%M%d"), number, entry.get_title())
+            wiki += u"[%s-%05d] ''' ''(bereits im Wiki!!!)'' %s '''\n" % (today.strftime("%Y%M%d"), number, self.get_title())
         else:
-            wiki += u"[%s-%05d] ''' %s '''\n" % (today.strftime("%Y%m%d"), number, entry.get_title())
-        wiki += u' * Expose: %s\n' % entry.get_expose_link()
-        wiki += u' * Bezirk: %s' % entry.get_borough() + '\n'
-        wiki += u'  * Adresse: %s\n' % entry.get_address()
-        wiki += u' * Gesamtmiete: %s\n' % entry.get_total_rent()
-        wiki += u'  * Kaltmiete: %s\n' % entry.get_cold_rent()
-        wiki += u'  * Nebenkosten: %s\n' % entry.get_additional_charges()
-        wiki += u'  * Heizkosten: %s\n' % entry.get_heating_cost()
-        wiki += u'  * Betriebskosten: %s\n' % entry.get_operation_expenses()
-        wiki += u' * Kaution: %s\n' % entry.get_security()
-        wiki += u' * Provision: %s\n' % entry.get_commission()
-        wiki += u' * Wohnfläche: %s\n' % entry.get_space()
-        wiki += u' * Zimmer: %s\n' % entry.get_rooms()
-        wiki += u' * Etage: %s\n' % entry.get_floor()
-        wiki += u' * Verfügbar ab: %s\n' % entry.get_availability()
-        wiki += u' * Kontakt: %s\n' % entry.get_contact()
+            wiki += u"[%s-%05d] ''' %s '''\n" % (today.strftime("%Y%m%d"), number, self.get_title())
+        wiki += u' * Expose: %s\n' % self.get_expose_link()
+        wiki += u' * Bezirk: %s' % self.get_borough() + '\n'
+        wiki += u'  * Adresse: %s\n' % self.get_address()
+        wiki += u' * Gesamtmiete: %s\n' % self.get_total_rent()
+        wiki += u'  * Kaltmiete: %s\n' % self.get_cold_rent()
+        wiki += u'  * Nebenkosten: %s\n' % self.get_additional_charges()
+        wiki += u'  * Heizkosten: %s\n' % self.get_heating_cost()
+        wiki += u'  * Betriebskosten: %s\n' % self.get_operation_expenses()
+        wiki += u' * Kaution: %s\n' % self.get_security()
+        wiki += u' * Provision: %s\n' % self.get_commission()
+        wiki += u' * Wohnfläche: %s\n' % self.get_space()
+        wiki += u' * Zimmer: %s\n' % self.get_rooms()
+        wiki += u' * Etage: %s\n' % self.get_floor()
+        wiki += u' * Verfügbar ab: %s\n' % self.get_availability()
+        wiki += u' * Kontakt: %s\n' % self.get_contact()
         wiki += u'\n'
         return wiki
     
