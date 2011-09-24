@@ -1168,6 +1168,7 @@ class ExposeFilter:
                         'Tegel',
                         'Wannsee',
                         'Wartenberg',
+                        'Wedding',
                         'Weissensee',
                         'Wilhelmshagen',
                         'Wittenau'
