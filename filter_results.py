@@ -252,10 +252,11 @@ def unescape(s):
 
 class AbstractExpose:
     def in_wiki(self, wiki_page):
-        return wiki.find(self.get_expose_link()) >= 0
+        return wiki_page.find(self.get_expose_link()) >= 0
     
     def generate_wiki_overview(self, wiki_page, number):
         wiki = ''
+        today = datetime.date.today()
         if self.in_wiki(wiki_page):
             wiki += u"[%s-%05d] ''' ''(bereits im Wiki!!!)'' %s '''\n" % (today.strftime("%Y%M%d"), number, self.get_title())
         else:
@@ -417,7 +418,7 @@ class GeneralExpose(AbstractExpose):
     def generate_wiki_overview(self, wiki_page, number):
         if isinstance(self.delegate, dict):
             self.delegate = self.__get_delegate()
-        return delegate.generate_wiki_overview()
+        return self.delegate.generate_wiki_overview(wiki_page, number)
     
     def get_borough(self):
         return self.borough
@@ -550,15 +551,17 @@ class ImmoscoutExpose(AbstractExpose):
         
     def get_cold_rent(self):
         if self.cold_rent == None:
-            self.cold_rent = self.pyquery("strong.is24qa-kaltmiete").text()
+            self.cold_rent = self.pyquery("strong.is24qa-kaltmiete").text().replace('EUR',u'€')
             if not self.cold_rent:
                 self.cold_rent = 'k. A.'
+            else:
+                self.cold_rent = self.cold_rent.replace('EUR',u'€')
         return self.cold_rent
     
     def get_additional_charges(self):
         if self.additional_charges == None:
             self.pyquery(".is24-operator").remove()
-            self.additional_charges = self.pyquery("td.is24qa-nebenkosten").text()
+            self.additional_charges = self.pyquery("td.is24qa-nebenkosten").text().replace('EUR',u'€')
             if not self.additional_charges:
                 self.additional_charges = 'k. A.'
         return self.additional_charges
@@ -573,7 +576,7 @@ class ImmoscoutExpose(AbstractExpose):
             if not self.heating_cost:
                 self.heating_cost = 'k. A.'
             else:
-                self.heating_cost = re.sub(r'\n\s*',' ',self.heating_cost.replace('\r',''))
+                self.heating_cost = re.sub(r'\n\s*',' ',self.heating_cost.replace('\r','')).replace('EUR',u'€')
         return self.heating_cost
     
     def get_heating_type(self):
@@ -589,6 +592,8 @@ class ImmoscoutExpose(AbstractExpose):
             self.total_rent = self.pyquery("strong.is24qa-gesamtmiete").text()
             if not self.total_rent:
                 self.total_rent = 'k. A.'
+            else:
+                self.total_rent = self.total_rent.replace('EUR',u'€')
         return self.total_rent
     
     def get_object_state(self):
@@ -603,6 +608,8 @@ class ImmoscoutExpose(AbstractExpose):
             self.security = self.pyquery("td.is24-mortgage").text()
             if not self.security:
                 self.security = 'k. A.'
+            else:
+                self.security = self.security.replace('EUR','€')
         return self.security
     
     def get_commission(self):
@@ -610,6 +617,8 @@ class ImmoscoutExpose(AbstractExpose):
             self.commission = self.pyquery("td.is24qa-provision").text()
             if not self.commission:
                 self.commission = 'k. A.'
+            else:
+                self.commission = self.commission.replace('EUR','€')
         return self.commission
     
     def get_space(self):
@@ -763,7 +772,7 @@ class ImmonetExpose(AbstractExpose):
             except AttributeError:
                 pass
             
-            self.total_rent = locale.str(rent)+u' €'
+            self.total_rent = locale.currency(rent)
         return self.total_rent
     
     def get_object_state(self):
@@ -968,7 +977,7 @@ class ImmoweltExpose(AbstractExpose):
             except AttributeError:
                 pass
             
-            self.total_rent = str(rent)+u' €'
+            self.total_rent = locale.currency(rent)
         return self.total_rent
     
     def get_object_state(self):
@@ -1145,6 +1154,7 @@ class ExposeFilter:
                         'Buch',
                         'Französisch Buchholz',
                         'Friedrichsfelde',
+                        'Friedrichshagen',
                         'Heiligensee',
                         'Heinersdorf',
                         'Hellersdorf',
@@ -1255,7 +1265,6 @@ def get_search_links(search_url,max_pages = None):
                     urlencode(query).replace('%27%5D','').replace('%5B%27',''),
                     parsed_url[5]
                 )))
-            
     if (search_url.find('immobilienscout24.de') >= 0):
         search_url = re.sub(r'Suche/S-([0-9]*)/Wohnung-Miete',r'Suche/S-\1/P-1/Wohnung-Miete',search_url)
         for i in range(1,pages+1):
@@ -1344,11 +1353,10 @@ def get_wiki_page():
 def get_expose_links(search_urls, pages = None):
     print "Collecting expose links:"
     expose_links = set()
-    
     for search_url in search_urls:
         search_url = search_url.strip().strip('\n')
-        print "* For '" + str(search_url)+"'"
         host = urlparse(search_url).netloc
+        print "* For '" + str(host)+"'"
         if pages != None:
             links = get_search_links(search_url, pages)
         else:
@@ -1377,8 +1385,8 @@ def get_expose_links(search_urls, pages = None):
                     hits_count_span = pyquery(
                             'span#ctl00_MainContent_ListNavigation1_lblHitsCount'
                         ).text()
-                    hits = re.search('\(von\s*([0-9]+)\s*Objekten\)',hits_count_span).group(1)
-                    prog = ProgressBar(int(hits))
+                    hits = int(re.search('\(von\s*([0-9]+)\s*Objekten\)',hits_count_span).group(1))
+                    prog = ProgressBar(hits)
                     page_num = 1
                     while 1:
                         sys.stdout.write(str(prog.update(last_first))+' \r')
@@ -1420,6 +1428,7 @@ def get_expose_links(search_urls, pages = None):
 if __name__ == "__main__":
     reload(sys)
     sys.setdefaultencoding('utf-8')
+    locale.setlocale( locale.LC_ALL, 'de_DE.UTF-8' )
     if (len(sys.argv) < 2):
         stderr.write("Usage: %s <Search-URL-File> [<Page number>]\n", argv[0])
     search_urls = open(sys.argv[1])
