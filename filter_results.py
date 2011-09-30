@@ -25,6 +25,9 @@ import urllib2
 import ConfigParser
 import datetime
 from urlparse import urlparse,parse_qs,urlunparse
+import xmlrpclib
+from multiprocessing import Process, Pipe
+import socket
 
 from pyquery import PyQuery
 
@@ -388,6 +391,30 @@ class AbstractExpose:
                 'availability': self.availability,
             }
     
+    def as_full_dict(self):
+        return {
+                'title': self.get_title(),
+                'borough': self.get_borough(),
+                'address': self.get_address(),
+                'expose_link': self.get_expose_link(),
+                'contact': self.get_contact(),
+                'cold_rent': self.get_cold_rent(),
+                'additional_charges': self.get_additional_charges(),
+                'operation_expenses': self.get_operation_expenses(),
+                'heating_cost': self.get_heating_cost(),
+                'heating_type': self.get_heating_type(),
+                'total_rent': self.get_total_rent(),
+                'object_state': self.get_object_state(),
+                'security': self.get_security(),
+                'commission': self.get_commission(),
+                'space': self.get_space(),
+                'floor': self.get_floor(),
+                'flat_type': self.get_flat_type(),
+                'rooms': self.get_rooms(),
+                'year': self.get_year(),
+                'availability': self.get_availability(),
+            }
+    
     def __init__(self,expose_link):
         self.pyquery = PyQuery(lxml.html.parse(expose_link).getroot())
         self.title = None
@@ -495,21 +522,25 @@ class GeneralExpose(AbstractExpose):
             self.delegate = self.__get_delegate()
         return eval('self.delegate.get_%s()' % attr)
     
-    def __str__(self):
-        return str(self.delegate)
-    
-    def __repr__(self):
-        return repr(self.delegate)
-    
     def as_dict(self):
         if isinstance(self.delegate, dict):
             return self.delegate
         else:
             return self.delegate.as_dict()
     
-    def __init__(self,expose_link):
-        self.expose_link = expose_link
-        if self.expose_link in old_exposes.keys():
+    def as_full_dict(self):
+        if isinstance(self.delegate, dict):
+            self.delegate = self.__get_delegate()
+        return self.delegate.as_full_dict()
+    
+    def marshal_delegate(self):
+        self.delegate = self.as_full_dict()
+    
+    def __init__(self, **args):
+        self.expose_link = args.get('expose_link')
+        if args.get('delegate') != None:
+            self.delegate = args.get('delegate')
+        elif self.expose_link in old_exposes.keys():
             self.delegate = old_exposes[self.expose_link]
         else:
             self.delegate = self.__get_delegate()
@@ -1122,20 +1153,25 @@ class ExposeFilter:
                 return True
     
     def categorize(self,expose):
+        expose.marshal_delegate()
         total_rent = ExposeFilter.parse_total_rent(expose.get_total_rent())
         category = (int(total_rent)/10)*10
         if self.categories.has_key(category):
-            self.categories[category].append(expose)
+            self.categories[str(category)].append(expose)
         else:
-            self.categories[category] = [expose]
+            self.categories[str(category)] = [expose]
     
     def __init__(self, expose_links):
         self.categories = dict()
         print "Filtering..."
         prog = ProgressBar(len(expose_links))
         for num,expose_link in enumerate(expose_links):
-            sys.stdout.write(str(prog.update(num))+' \r') 
-            expose = GeneralExpose(expose_link)
+            sys.stdout.write(str(prog.update(num))+' \r')
+            try:
+                expose = GeneralExpose(expose_link = expose_link)
+            except IOError, e:
+                print e
+                continue
             if (not self.in_floors(expose,0) and 
                 not self.is_commissioned(expose) and
                 self.has_min_rooms(expose,2) and
@@ -1281,11 +1317,12 @@ def generate_wiki_overview(categories):
     today = datetime.date.today()
     wiki.write(u"== Kandidaten %s ==\n" % today.strftime("%Y-%m-%d"))
     for i in range(51):
-        category = categories.get(i*10)
+        category = categories.get(str(i*10))
         if category != None:
             wiki.write(u"=== Preisklasse %d0 - %d9 € ===\n" % (i,i))
             for entry in category:
-                entry.generate_wiki_overview(wiki_page, number)
+                print type(entry), entry
+                wiki.write(entry.generate_wiki_overview(wiki_page, number))
                 number += 1
                 new_exposes[entry.get_expose_link()] = entry.as_dict()
             wiki.write('\n')
@@ -1423,26 +1460,129 @@ def get_expose_links(search_urls, pages = None):
                     raise Exception('URL of host %s://%s not supported' % (parsed_url.scheme,parsed_url.netloc))
                 file.close()
         print prog.update(num+1)
-    return expose_links
+    return list(expose_links)
+
+def filter_exposes(expose_links):
+    if len(expose_links) > 0:
+        filter = ExposeFilter(expose_links)
+        _set_json_object(os.path.join(os.path.dirname(__file__),'old_exposes.json'),new_exposes)
+        return filter.categories
+    else:
+        return dict()
+
+def test_worker():
+    pass
+
+def call_worker(conn,function,args):
+    try:
+        conn.send(function(*args))
+        conn.close()
+    except xmlrpclib.Fault, e:
+        print e.faultCode
+        print e.faultString
+
+worker_list = ['localhost:%d' % i for i in range(9000,9040)]
 
 if __name__ == "__main__":
     reload(sys)
     sys.setdefaultencoding('utf-8')
     locale.setlocale( locale.LC_ALL, 'de_DE.UTF-8' )
-    if (len(sys.argv) < 2):
-        stderr.write("Usage: %s <Search-URL-File> [<Page number>]\n", argv[0])
-    search_urls = open(sys.argv[1])
-        
-    if len(sys.argv) == 3:
-        expose_links = get_expose_links(search_urls, int(sys.argv[2]))
+    if len(sys.argv) < 2:
+        sys.stderr.write("Usage: %s {<Port> | <Search-URL-File> [<Page number>]} \n" % sys.argv[0])
+        exit(1)
+    if re.match("^[0-9]+$",sys.argv[1]) != None:
+        port = int(sys.argv[1])
+        from SimpleXMLRPCServer import SimpleXMLRPCServer as RPCServer
+        srv = RPCServer(("",int(sys.argv[1])), allow_none = True)
+        srv.register_function(get_expose_links)
+        srv.register_function(filter_exposes)
+        srv.register_function(test_worker)
+        srv.serve_forever()
+        exit(0)
     else:
-        expose_links = get_expose_links(search_urls)
+        url_file = sys.argv[1]
     
-    if len(expose_links) > 0:
-        filter = ExposeFilter(expose_links)
+    search_urls = open(url_file)
+    
+    workers = []
+    for hostname in worker_list:
+        try:
+            worker = xmlrpclib.ServerProxy("http://%s" % hostname)
+            worker.test_worker()
+        except socket.gaierror:
+            continue
+        except socket.error:
+            continue
+        workers += [worker]
+    
+    if len(workers) == 0:
+        if len(sys.argv) == 3:
+            pages = int(sys.argv[2])
+            expose_links = get_expose_links(search_urls,pages)
+        else:
+            expose_links = get_expose_links(search_urls)
         
-        generate_wiki_overview(filter.categories)
+        categories = filter_exposes(expose_links)
     else:
-        sys.stderr.write("Error: No expose links found.\n")
+        search_urls = search_urls.readlines()
+        num_workers = len(workers)
+        r = len(search_urls) % len(workers)
+        end = 0
+        worker_threads = []
+        for i, worker in enumerate(workers[:len(search_urls)]):
+            parent_conn, child_conn = Pipe()
+            start = end
+            end = start + len(search_urls) / num_workers
+            if r > 0:
+                end += 1
+                r -= 1
+            if len(sys.argv) == 3:
+                pages = int(sys.argv[2])
+                worker_thread = Process(
+                        target = call_worker, 
+                        args = (child_conn,worker.get_expose_links,[search_urls[start:end],pages],)
+                    )
+            else:
+                worker_thread = Process(
+                        target = call_worker, 
+                        args = (child_conn,worker.get_expose_links,[search_urls[start:end]],)
+                    )
+            worker_thread.start()
+            worker_threads += [(worker_thread, parent_conn)]
+        
+        expose_links = set()
+        
+        for thread, conn in worker_threads:
+            expose_links = expose_links.union(conn.recv())
+            thread.join()
+        expose_links = list(expose_links)
+        end = 0
+        r = len(expose_links) % len(workers)
+        worker_threads = []
+        for i, worker in enumerate(workers[:len(expose_links)]):
+            parent_conn, child_conn = Pipe()
+            start = end
+            end = start + len(expose_links) / num_workers
+            if r > 0:
+                end += 1
+                r -= 1
+            worker_thread = Process(
+                    target = call_worker,
+                    args = (child_conn,worker.filter_exposes,[expose_links[start:end]],)
+                )
+            worker_thread.start()
+            worker_threads += [(worker_thread, parent_conn)]
+        
+        categories = dict()
+        
+        for thread, conn in worker_threads:
+            proto_categories = conn.recv()
+            thread.join()
+            for key in proto_categories:
+                if key not in categories.keys():
+                    categories[key] = []
+                categories[key] += [GeneralExpose(**expose) for expose in proto_categories[key]]
+    
+    generate_wiki_overview(categories)
     _set_json_object(os.path.join(os.path.dirname(__file__),'old_exposes.json'),new_exposes)
 
